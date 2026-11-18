@@ -1,5 +1,8 @@
 from rest_framework import status, generics, mixins
+from rest_framework.decorators import action
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
@@ -17,6 +20,50 @@ class HealthCheckAPIView(APIView):
             "status": "ok",
             "service": "smart-booking"
         })
+
+
+class ServiceOfferingViewSet(ModelViewSet):
+    # queryset = ServiceOffering.objects.filter(
+    #     is_active=True
+    # )
+
+    # serializer_class = ServiceOfferingSerializer
+    permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = ServiceOffering.objects.all()
+
+        if self.action in ["list", "retrieve"]:
+            return queryset
+
+        return queryset.filter(is_active=True)
+
+    def get_serializer_class(self):
+        print("Current action:", self.action)
+        return ServiceOfferingSerializer
+
+    def perform_create(self, serializer):
+        print("Creating service...")
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        raise MethodNotAllowed("DELETE")
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="deactivate"
+    )
+    def deactivate(self, request, pk=None):
+        service = self.get_object()
+
+        service.is_active = False
+        service.save(update_fields=["is_active"])
+
+        return Response(
+            {"message": "Serivice deactivated."},
+            status=status.HTTP_200_OK
+        )
 
 
 class ServicesListApiView(
