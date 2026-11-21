@@ -2,14 +2,24 @@ from rest_framework import status, generics, mixins
 from rest_framework.decorators import action
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
 from django.shortcuts import get_object_or_404
 
-from booking.models import ServiceOffering
-from booking.serializers import ServiceOfferingSerializer
+from booking.models import (
+    ServiceOffering,
+    ProviderProfile,
+    AvailabilitySlot,
+)
+from booking.serializers import (
+    ServiceOfferingSerializer,
+    ServiceDetailSerializer,
+    ProviderProfileSerializer,
+    ProviderDetailSerializer,
+    AvailabilitySlotSerializer,
+)
 
 
 class HealthCheckAPIView(APIView):
@@ -40,10 +50,18 @@ class ServiceOfferingViewSet(ModelViewSet):
 
     def get_serializer_class(self):
         print("Current action:", self.action)
+        if self.action == "retrieve":
+            return ServiceDetailSerializer
+
         return ServiceOfferingSerializer
 
     def perform_create(self, serializer):
         print("Creating service...")
+        provider = serializer.validated_data.get("provider")
+
+        print("provider:", provider)
+        print("provider type:", type(provider))
+
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -64,6 +82,37 @@ class ServiceOfferingViewSet(ModelViewSet):
             {"message": "Serivice deactivated."},
             status=status.HTTP_200_OK
         )
+
+
+class ProviderViewSet(ReadOnlyModelViewSet):
+    permission_classes = [AllowAny]
+
+    queryset = ProviderProfile.objects.all()
+
+    def get_queryset(self):
+        return ProviderProfile.objects.select_related(
+            "user"
+        ).prefetch_related(
+            "services"
+        )
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return ProviderDetailSerializer
+
+        return ProviderProfileSerializer
+
+
+class AvailabilitySlotViewSet(ModelViewSet):
+    permission_classes = [AllowAny]
+    serializer_class = AvailabilitySlotSerializer
+
+    queryset = AvailabilitySlot.objects.all()
+
+    def get_queryset(self):
+        return AvailabilitySlot.objects.select_related(
+            "provider"
+        ).order_by("start_at")
 
 
 class ServicesListApiView(
