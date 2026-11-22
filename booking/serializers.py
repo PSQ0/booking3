@@ -6,6 +6,8 @@ from booking.models import (
     AvailabilitySlot
 )
 
+from django.utils import timezone
+
 
 class ProviderProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
@@ -103,19 +105,6 @@ class ServiceSummarySerializer(
         ]
 
 
-class ProviderDetailSerializer(
-    ProviderProfileSerializer
-):
-    services = ServiceSummarySerializer(
-        many=True,
-        read_only=True
-    )
-
-    class Meta(ProviderProfileSerializer.Meta):
-        fields = (
-            ProviderProfileSerializer.Meta.fields
-            + ["services"]
-        )
 
 
 
@@ -148,3 +137,36 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+    def validate_start_at(self, value):
+        if self.instance is None and value < timezone.now():
+            raise serializers.ValidationError(
+                "Start time cannot be in the past."
+            )
+        return value
+
+class ProviderSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvailabilitySlot
+        fields = ["id", "start_at", "end_at"]
+
+
+class ProviderDetailSerializer(
+    ProviderProfileSerializer
+):
+    services = ServiceSummarySerializer(
+        many=True,
+        read_only=True
+    )
+
+    slots = serializers.SerializerMethodField()
+
+    class Meta(ProviderProfileSerializer.Meta):
+        fields = (
+            ProviderProfileSerializer.Meta.fields
+            + ["services", "slots"]
+        )
+
+    def get_slots(self, obj):
+        active_slots = obj.slots.filter(is_active=True)
+        return ProviderSlotSerializer(active_slots, many=True).data

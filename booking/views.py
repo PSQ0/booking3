@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import ValidationError
 
 from django.shortcuts import get_object_or_404
 
@@ -106,13 +107,29 @@ class ProviderViewSet(ReadOnlyModelViewSet):
 class AvailabilitySlotViewSet(ModelViewSet):
     permission_classes = [AllowAny]
     serializer_class = AvailabilitySlotSerializer
-
     queryset = AvailabilitySlot.objects.all()
 
     def get_queryset(self):
-        return AvailabilitySlot.objects.select_related(
+        queryset = AvailabilitySlot.objects.select_related(
             "provider"
         ).order_by("start_at")
+
+        provider_id = self.request.query_params.get("provider_id")
+        if provider_id is None:
+            return queryset
+
+        try:
+            provider_id = int(provider_id)
+        except ValueError:
+            raise ValidationError({
+                "provider_id":"شناسه پرووایدر باید عدد صحیح مثبت باشه."
+            })
+        if provider_id <= 0:
+            raise ValidationError({
+                "provider_id":"شناسه پرووایدر باید عدد صحیح مثبت باشه."
+            })
+
+        return queryset.filter(provider_id=provider_id)
 
 
 class ServicesListApiView(
